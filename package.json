@@ -1,7 +1,0 @@
-{
-  "name": "pro-discord-bot-v3-profissional",
-  "version": "3.0.0",
-  "main": "src/index.js",
-  "scripts": {"start": "node src/index.js"},
-  "dependencies": {"discord.js": "^14.21.0", "dotenv": "^16.6.1"}
-}
