@@ -1,89 +1,48 @@
-# Pro Discord Support Suite
+# V4 Discord Bot
 
-Bot profissional para Discord com:
+Bot profissional de Discord com:
+- 🎫 Painel de tickets
+- 🔨 Assumir ticket
+- 🤖 IA no ticket
+- ⏸️ IA para quando staff assume
+- 👥 Fluxo de adicionar pessoa
+- ⭐ Avaliação
+- 🛒 Painel de vendas
+- 🛡️ Anti-raid
+- 🚨 Anti-spam
+- ⚡ Branding "Bot feito por V4"
 
-- 🎫 Tickets com painel, categorias e botões
-- 🔨 Assumir ticket: ao assumir, a IA para automaticamente
-- 🤖 IA de suporte dentro dos tickets
-- 👥 Adicionar/remover membros do ticket
-- ⭐ Avaliação de atendimento
-- 📄 Transcript em HTML
-- 🛒 Sistema de vendas com catálogo, carrinho e pedidos
-- 🎟️ Cupons
-- 📦 Estoque
-- 🛡️ Anti-raid e segurança
-- 🔐 Lockdown
-- 📋 Logs e auditoria
-- ⚙️ Configuração por servidor
-- 🌐 Estrutura pronta para dashboard
+## Railway
 
-## Instalação
+1. Suba este projeto para GitHub.
+2. Crie um serviço no Railway.
+3. Configure as variáveis usando `.env.example`.
+4. O comando de inicialização é `npm start`.
+5. Para publicar os slash commands, execute `npm run deploy`.
 
-1. Instale Node.js 20+.
-2. Crie uma aplicação/bot no Discord Developer Portal.
-3. Ative `Server Members Intent` e `Message Content Intent`.
-4. Copie `.env.example` para `.env` e preencha os valores.
-5. Crie um PostgreSQL e coloque `DATABASE_URL`.
-6. Rode:
+## Variáveis obrigatórias
 
-```bash
-npm install
-npm run deploy
-npm start
-```
+DISCORD_TOKEN
+CLIENT_ID
+GUILD_ID
 
-## Permissões recomendadas
+Para IA:
+OPENAI_API_KEY
+OPENAI_MODEL
 
-O bot precisa, conforme os módulos utilizados:
+## Importante
 
-- Manage Channels
-- Manage Roles
-- Manage Messages
-- View Audit Log
-- Send Messages
-- Embed Links
-- Attach Files
-- Read Message History
-- Add Reactions
-- Manage Webhooks (somente se o seu fluxo precisar)
+Nunca publique tokens ou API keys.
+Se uma chave for exposta, revogue e crie outra.
 
-Não dê Administrator por padrão.
+## Comandos
 
-## Comandos principais
+/painel
+/loja
+/seguranca
 
-- `/setup tickets`
-- `/setup vendas`
-- `/setup seguranca`
-- `/ticket painel`
-- `/ticket assumir`
-- `/ticket fechar`
-- `/ticket adicionar`
-- `/ticket remover`
-- `/ticket ia`
-- `/ticket avaliar`
-- `/produto criar`
-- `/produto listar`
-- `/produto estoque`
-- `/pedido consultar`
-- `/cupom criar`
-- `/security status`
-- `/security lockdown`
-
-## IA
-
-A IA só responde em canais de ticket que estejam com `ai_enabled = true`.
-Quando um staff usa `/ticket assumir`, o bot muda `ai_enabled` para `false`.
-
-Para produção, coloque limites de custo/rate limit e uma base de conhecimento própria.
-
-## Pagamentos
-
-O módulo de vendas deste projeto cria catálogo, carrinho, pedidos e checkout interno. Não inclui processamento real de cartão. Para pagamentos reais, conecte um PSP (Stripe, Mercado Pago, PayPal, etc.) no serviço de checkout e valide webhooks no backend.
-
-## Segurança
-
-O Anti-Raid usa heurísticas locais: velocidade de entrada, spam, menções e ações administrativas suspeitas. Ele é uma camada de proteção, não substitui as configurações de segurança do próprio Discord.
-
+Depois de iniciar o bot, use `/painel` no canal onde deseja colocar o sistema de tickets.
 
 ## Créditos
-**Bot feito por V4** ⚡
+
+⚡ Bot feito por V4

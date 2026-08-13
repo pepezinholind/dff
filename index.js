@@ -2,12 +2,11 @@ const {
   Client,
   GatewayIntentBits,
   Partials,
-  Events
+  Events,
+  PermissionFlagsBits
 } = require("discord.js");
 
 const config = require("./config");
-const { initDb, pool } = require("./db");
-const { handleCommand } = require("./commands");
 const tickets = require("./services/tickets");
 const security = require("./services/security");
 const { answerTicket } = require("./services/ai");
@@ -19,500 +18,105 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent
   ],
-  partials: [
-    Partials.Channel,
-    Partials.Message
-  ]
+  partials: [Partials.Channel, Partials.Message]
 });
 
-/*
-|--------------------------------------------------------------------------
-| BOT ONLINE
-|--------------------------------------------------------------------------
-*/
-
-client.once(Events.ClientReady, async (clientUser) => {
+client.once(Events.ClientReady, c => {
   console.log("====================================");
-  console.log("🤖 BOT INICIADO");
-  console.log(`👤 Login: ${clientUser.tag}`);
-  console.log(`🆔 Bot ID: ${clientUser.id}`);
-  console.log(`🌐 Servidores: ${clientUser.guilds.cache.size}`);
+  console.log("🤖 V4 DISCORD BOT");
+  console.log(`✅ Online como ${c.user.tag}`);
+  console.log(`🌐 Servidores: ${c.guilds.cache.size}`);
+  console.log("⚡ Bot feito por V4");
   console.log("====================================");
 });
 
-/*
-|--------------------------------------------------------------------------
-| INTERACTIONS
-|--------------------------------------------------------------------------
-*/
-
-client.on(Events.InteractionCreate, async (interaction) => {
+client.on(Events.InteractionCreate, async interaction => {
   try {
-
-    /*
-    |--------------------------------------------------------------------------
-    | SLASH COMMANDS
-    |--------------------------------------------------------------------------
-    */
-
     if (interaction.isChatInputCommand()) {
-      await handleCommand(interaction);
-      return;
+      return await tickets.handleCommand(interaction);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | SELECT MENU
-    |--------------------------------------------------------------------------
-    */
-
-    if (
-      interaction.isStringSelectMenu() &&
-      interaction.customId === "ticket_create"
-    ) {
-      await tickets.createTicket(
-        interaction,
-        interaction.values[0]
-      );
-
-      return;
+    if (interaction.isStringSelectMenu() && interaction.customId === "v4_ticket_create") {
+      return await tickets.createTicket(interaction, interaction.values[0]);
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | BUTTONS
-    |--------------------------------------------------------------------------
-    */
 
     if (interaction.isButton()) {
-
-      if (interaction.customId === "ticket_claim") {
-        await tickets.claimTicket(interaction);
-        return;
-      }
-
-      if (interaction.customId === "ticket_ai") {
-        await tickets.toggleAI(interaction);
-        return;
-      }
-
-      if (interaction.customId === "ticket_close") {
-        await tickets.closeTicket(interaction);
-        return;
-      }
-
-      if (interaction.customId.startsWith("rate_")) {
-
-        const stars = Number(
-          interaction.customId.split("_")[1]
-        );
-
-        await tickets.rate(
-          interaction,
-          stars
-        );
-
-        return;
+      if (interaction.customId === "v4_ticket_claim") return await tickets.claimTicket(interaction);
+      if (interaction.customId === "v4_ticket_close") return await tickets.closeTicket(interaction);
+      if (interaction.customId === "v4_ticket_add") return await tickets.addPerson(interaction);
+      if (interaction.customId === "v4_ticket_ai") return await tickets.toggleAI(interaction);
+      if (interaction.customId.startsWith("v4_rate_")) {
+        return await tickets.rate(interaction, Number(interaction.customId.split("_")[2]));
       }
     }
-
-  } catch (error) {
-
-    console.error("❌ ERRO NA INTERACTION:");
-    console.error(error);
-
-    try {
-
-      if (
-        !interaction.replied &&
-        !interaction.deferred
-      ) {
-
-        await interaction.reply({
-          content: "❌ Ocorreu um erro interno.",
-          ephemeral: true
-        });
-
-      }
-
-    } catch (_) {}
+  } catch (err) {
+    console.error("Interaction error:", err);
+    const payload = { content: "❌ Ocorreu um erro interno.", ephemeral: true };
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(payload).catch(() => {});
+    } else {
+      await interaction.reply(payload).catch(() => {});
+    }
   }
 });
 
-/*
-|--------------------------------------------------------------------------
-| ANTI RAID
-|--------------------------------------------------------------------------
-*/
-
-client.on(
-  Events.GuildMemberAdd,
-  async (member) => {
-
-    try {
-
-      const count = security.recordJoin(
-        member.guild.id,
-        member.id
-      );
-
-      console.log(
-        `👤 Entrada: ${member.user.tag} | ${count}/15s`
-      );
-
-      /*
-      |--------------------------------------------------------------------------
-      | DETECÇÃO DE RAID
-      |--------------------------------------------------------------------------
-      */
-
-      if (count >= 8) {
-
-        await security.enableRaidMode(
-          member.guild
-        );
-
-        console.warn(
-          `🛡️ POSSÍVEL RAID DETECTADO: ${member.guild.name}`
-        );
-
-      }
-
-    } catch (error) {
-
-      console.error(
-        "❌ Erro no Anti-Raid:",
-        error
-      );
-
+client.on(Events.GuildMemberAdd, async member => {
+  try {
+    const count = security.recordJoin(member.guild.id, member.id);
+    if (count >= 8) {
+      await security.enableRaidMode(member.guild);
+      console.warn(`🛡️ Possível raid: ${member.guild.name} (${count} entradas/15s)`);
     }
+  } catch (err) {
+    console.error("Anti-raid error:", err);
   }
-);
+});
 
-/*
-|--------------------------------------------------------------------------
-| MENSAGENS
-|--------------------------------------------------------------------------
-*/
+client.on(Events.MessageCreate, async message => {
+  if (message.author.bot || !message.guild) return;
 
-client.on(
-  Events.MessageCreate,
-  async (message) => {
+  try {
+    const rate = security.recordMessage(message.guild.id, message.author.id);
+    if (rate >= 8) {
+      await message.delete().catch(() => {});
+      return;
+    }
 
-    try {
+    if (!message.channel.isTextBased()) return;
+    if (!message.channel.topic?.startsWith("V4-TICKET:")) return;
+    if (!message.content?.trim()) return;
 
-      /*
-      |--------------------------------------------------------------------------
-      | IGNORAR BOTS
-      |--------------------------------------------------------------------------
-      */
+    const state = tickets.getTicket(message.channel.id);
+    if (!state || state.closed || !state.aiEnabled || state.claimedBy) return;
+    if (!config.aiEnabled || !config.openaiKey) return;
 
-      if (
-        message.author.bot ||
-        !message.guild
-      ) {
-        return;
-      }
-
-      /*
-      |--------------------------------------------------------------------------
-      | ANTI SPAM
-      |--------------------------------------------------------------------------
-      */
-
-      const messageRate =
-        security.recordMessage(
-          message.guild.id,
-          message.author.id
-        );
-
-      if (messageRate >= 8) {
-
-        await message.delete().catch(() => {});
-
-        return;
-      }
-
-      /*
-      |--------------------------------------------------------------------------
-      | VERIFICAR SE É TICKET
-      |--------------------------------------------------------------------------
-      */
-
-      const channelName =
-        message.channel.name || "";
-
-      const isTicket =
-        channelName.startsWith("🛠️") ||
-        channelName.startsWith("🛒") ||
-        channelName.startsWith("💳") ||
-        channelName.startsWith("🤝");
-
-      if (!isTicket) {
-        return;
-      }
-
-      /*
-      |--------------------------------------------------------------------------
-      | IGNORAR MENSAGENS MUITO PEQUENAS
-      |--------------------------------------------------------------------------
-      */
-
-      if (
-        !message.content ||
-        message.content.length < 2
-      ) {
-        return;
-      }
-
-      /*
-      |--------------------------------------------------------------------------
-      | BUSCAR TICKET
-      |--------------------------------------------------------------------------
-      */
-
-      const ticket =
-        await pool.query(
-          `
-          SELECT *
-          FROM tickets
-          WHERE channel_id = $1
-          AND closed_at IS NULL
-          `,
-          [message.channel.id]
-        );
-
-      if (!ticket.rowCount) {
-        return;
-      }
-
-      const ticketData =
-        ticket.rows[0];
-
-      /*
-      |--------------------------------------------------------------------------
-      | SE STAFF ASSUMIU → IA PARA
-      |--------------------------------------------------------------------------
-      */
-
-      if (
-        ticketData.claimed_by ||
-        !ticketData.ai_enabled
-      ) {
-        return;
-      }
-
-      /*
-      |--------------------------------------------------------------------------
-      | IA
-      |--------------------------------------------------------------------------
-      */
-
-      console.log(
-        `🤖 IA respondendo no ticket ${message.channel.id}`
-      );
-
-      const answer =
-        await answerTicket(
-          message.channel,
-          message.content
-        ).catch((error) => {
-
-          console.error(
-            "❌ Erro na IA:",
-            error.message
-          );
-
-          return null;
-        });
-
-      if (!answer) {
-        return;
-      }
-
-      /*
-      |--------------------------------------------------------------------------
-      | ENVIAR RESPOSTA DA IA
-      |--------------------------------------------------------------------------
-      */
-
+    await message.channel.sendTyping().catch(() => {});
+    const answer = await answerTicket(message.channel, message.content);
+    if (answer) {
       await message.channel.send({
-        content: answer.slice(0, 3900)
+        content: answer.slice(0, 3900),
+        allowedMentions: { parse: [] }
       });
-
-    } catch (error) {
-
-      console.error(
-        "❌ Erro no MessageCreate:",
-        error
-      );
-
     }
+  } catch (err) {
+    console.error("AI/message error:", err);
   }
-);
+});
 
-/*
-|--------------------------------------------------------------------------
-| VERIFICAÇÃO DO TOKEN
-|--------------------------------------------------------------------------
-*/
+process.on("unhandledRejection", err => console.error("Unhandled rejection:", err));
+process.on("uncaughtException", err => console.error("Uncaught exception:", err));
 
-async function startBot() {
-
-  console.log("====================================");
-  console.log("🚀 INICIANDO PRO DISCORD BOT");
-  console.log("====================================");
-
-  /*
-  |--------------------------------------------------------------------------
-  | VERIFICAR ENV
-  |--------------------------------------------------------------------------
-  */
-
-  console.log(
-    "🔍 Verificando configuração..."
-  );
-
-  const token =
-    process.env.DISCORD_TOKEN;
-
-  /*
-  |--------------------------------------------------------------------------
-  | NÃO MOSTRAR TOKEN
-  |--------------------------------------------------------------------------
-  */
-
-  console.log(
-    "🔑 DISCORD_TOKEN existe:",
-    Boolean(token)
-  );
-
-  console.log(
-    "📏 Tamanho do token:",
-    token ? token.length : 0
-  );
-
-  /*
-  |--------------------------------------------------------------------------
-  | VERIFICAR TOKEN
-  |--------------------------------------------------------------------------
-  */
-
-  if (!token) {
-
-    console.error(
-      "❌ DISCORD_TOKEN não foi encontrado!"
-    );
-
-    console.error(
-      "➡️ Railway → Variables → DISCORD_TOKEN"
-    );
-
-    process.exit(1);
-  }
-
-  /*
-  |--------------------------------------------------------------------------
-  | BANCO
-  |--------------------------------------------------------------------------
-  */
-
+(async () => {
   try {
-
-    console.log(
-      "🗄️ Inicializando banco de dados..."
-    );
-
-    await initDb();
-
-    console.log(
-      "✅ Banco de dados conectado."
-    );
-
-  } catch (error) {
-
-    console.error(
-      "❌ Erro no banco de dados:"
-    );
-
-    console.error(error);
-
-    process.exit(1);
-  }
-
-  /*
-  |--------------------------------------------------------------------------
-  | LOGIN DISCORD
-  |--------------------------------------------------------------------------
-  */
-
-  try {
-
-    console.log(
-      "🔐 Tentando conectar ao Discord..."
-    );
-
-    await client.login(
-      token.trim()
-    );
-
-  } catch (error) {
-
-    console.error(
-      "===================================="
-    );
-
-    console.error(
-      "❌ NÃO FOI POSSÍVEL LOGIN NO DISCORD"
-    );
-
-    console.error(
-      "===================================="
-    );
-
-    console.error(
-      "Código:",
-      error.code
-    );
-
-    console.error(
-      "Mensagem:",
-      error.message
-    );
-
-    if (
-      error.code === "TokenInvalid"
-    ) {
-
-      console.error(
-        "🔴 O DISCORD_TOKEN é inválido."
-      );
-
-      console.error(
-        "➡️ Gere um novo token em:"
-      );
-
-      console.error(
-        "Discord Developer Portal → Bot → Reset Token"
-      );
-
-      console.error(
-        "➡️ Depois coloque o novo token em:"
-      );
-
-      console.error(
-        "Railway → Variables → DISCORD_TOKEN"
-      );
+    console.log("🚀 Iniciando V4 Bot...");
+    console.log(`🔑 DISCORD_TOKEN encontrado: ${Boolean(process.env.DISCORD_TOKEN)}`);
+    console.log(`📏 Tamanho do token: ${process.env.DISCORD_TOKEN?.length || 0}`);
+    await client.login(config.token);
+  } catch (err) {
+    console.error("❌ Falha ao iniciar:", err.message);
+    if (err.code === "TokenInvalid") {
+      console.error("🔴 DISCORD_TOKEN inválido. Gere um token novo no Discord Developer Portal.");
     }
-
     process.exit(1);
   }
-}
-
-/*
-|--------------------------------------------------------------------------
-| START
-|--------------------------------------------------------------------------
-*/
-
-startBot();
+})();

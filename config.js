@@ -1,35 +1,23 @@
 require("dotenv").config();
 
+function required(name) {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`Variável ${name} não configurada.`);
+  return value;
+}
+
 module.exports = {
-  token: process.env.TOKEN,
-  guildId: process.env.GUILD_ID,
-  staffRoleId: process.env.STAFF_ROLE_ID,
-  ticketCategoryId: process.env.TICKET_CATEGORY_ID,
-  ticketPanelChannelId: process.env.TICKET_PANEL_CHANNEL_ID,
-  logChannelId: process.env.LOG_CHANNEL_ID,
-  ratingChannelId: process.env.RATING_CHANNEL_ID,
-  serverPanelChannelId: process.env.SERVER_PANEL_CHANNEL_ID,
-  serverStatusChannelId: process.env.SERVER_STATUS_CHANNEL_ID,
-  announcementChannelId: process.env.ANNOUNCEMENT_CHANNEL_ID,
-  eventChannelId: process.env.EVENT_CHANNEL_ID,
-  reportChannelId: process.env.REPORT_CHANNEL_ID,
-  welcomeChannelId: process.env.WELCOME_CHANNEL_ID,
-  autoRoleId: process.env.AUTO_ROLE_ID,
-  maxOpenTickets: Number(process.env.MAX_OPEN_TICKETS || 2),
-  colors: {
-    primary: 0x5865F2,
-    success: 0x57F287,
-    danger: 0xED4245,
-    warning: 0xFEE75C,
-    info: 0x3498DB,
-    purple: 0x9B59B6,
-    dark: 0x111318
-  },
-  categories: {
-    suporte: ["🧰", "Suporte", "Ajuda, dúvidas e problemas técnicos."],
-    compras: ["🛒", "Compras", "Pedidos, pagamentos e produtos."],
-    denuncia: ["🚨", "Denúncia", "Reporte uma situação para análise da equipe."],
-    parceria: ["🤝", "Parceria", "Propostas e colaborações."],
-    vip: ["💎", "VIP", "Benefícios, VIP e assuntos especiais."]
-  }
+  token: required("DISCORD_TOKEN"),
+  clientId: required("CLIENT_ID"),
+  guildId: required("GUILD_ID"),
+  openaiKey: process.env.OPENAI_API_KEY?.trim() || "",
+  openaiModel: process.env.OPENAI_MODEL?.trim() || "gpt-5-mini",
+  aiEnabled: process.env.AI_ENABLED !== "false",
+  supportRoleId: process.env.SUPPORT_ROLE_ID?.trim() || "",
+  salesRoleId: process.env.SALES_ROLE_ID?.trim() || "",
+  ticketCategoryId: process.env.TICKET_CATEGORY_ID?.trim() || "",
+  salesCategoryId: process.env.SALES_CATEGORY_ID?.trim() || "",
+  logChannelId: process.env.LOG_CHANNEL_ID?.trim() || "",
+  securityLogChannelId: process.env.SECURITY_LOG_CHANNEL_ID?.trim() || "",
+  port: Number(process.env.PORT || 3000)
 };
