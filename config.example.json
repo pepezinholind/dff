@@ -1,0 +1,15 @@
+{
+  "tickets": {
+    "departments": ["suporte", "compras", "parcerias", "denuncias"],
+    "rating": true,
+    "transcripts": true
+  },
+  "security": {
+    "antiRaid": true,
+    "antiSpam": true,
+    "antiNuke": true
+  },
+  "sales": {
+    "enabled": true
+  }
+}

@@ -1,48 +1,34 @@
-# V4 Discord Bot
+# Pro Ticket Bot
 
-Bot profissional de Discord com:
-- 🎫 Painel de tickets
-- 🔨 Assumir ticket
-- 🤖 IA no ticket
-- ⏸️ IA para quando staff assume
-- 👥 Fluxo de adicionar pessoa
-- ⭐ Avaliação
-- 🛒 Painel de vendas
-- 🛡️ Anti-raid
-- 🚨 Anti-spam
-- ⚡ Branding "Bot feito por V4"
+Base profissional para Discord com:
 
-## Railway
+- 🎫 Tickets por departamento
+- 🤖 IA configurável dentro dos tickets
+- 👤 Assumir ticket: pausa a IA
+- ➕ Adicionar membro ao ticket
+- ⭐ Avaliação de atendimento
+- 🔒 Fechamento e transcript
+- 🛒 Estrutura inicial para vendas
+- 🛡️ Anti-spam, anti-raid e anti-nuke básicos
+- 📋 Logs
+- ⚙️ Configuração por `.env`
 
-1. Suba este projeto para GitHub.
-2. Crie um serviço no Railway.
-3. Configure as variáveis usando `.env.example`.
-4. O comando de inicialização é `npm start`.
-5. Para publicar os slash commands, execute `npm run deploy`.
+## Instalação
 
-## Variáveis obrigatórias
+1. Instale Node.js 20+.
+2. Execute `npm install`.
+3. Copie `.env.example` para `.env`.
+4. Preencha `DISCORD_TOKEN`, `CLIENT_ID` e `GUILD_ID`.
+5. Execute `npm start`.
 
-DISCORD_TOKEN
-CLIENT_ID
-GUILD_ID
+## IA
 
-Para IA:
-OPENAI_API_KEY
-OPENAI_MODEL
+A integração de IA está preparada em `src/ai.js`. Configure `OPENAI_API_KEY` e `AI_MODEL` para ativá-la. Sem chave, o bot continua funcionando e informa que a IA não está configurada.
+
+## Segurança
+
+O módulo de segurança mantém estado em memória para o protótipo. Para produção multi-servidor, recomenda-se PostgreSQL/Redis e persistência de configurações.
 
 ## Importante
 
-Nunca publique tokens ou API keys.
-Se uma chave for exposta, revogue e crie outra.
-
-## Comandos
-
-/painel
-/loja
-/seguranca
-
-Depois de iniciar o bot, use `/painel` no canal onde deseja colocar o sistema de tickets.
-
-## Créditos
-
-⚡ Bot feito por V4
+Este é um starter funcional e extensível, não uma solução pronta para produção de grande escala. Revise permissões, limites, armazenamento e políticas do seu servidor antes de colocar em produção.
