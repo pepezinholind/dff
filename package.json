@@ -1,1 +1,18 @@
-{"name":"nobre-discord-bot-v4-seguranca","version":"4.0.0","main":"index.js","scripts":{"start":"node index.js"},"dependencies":{"discord.js":"^14.21.0","dotenv":"^16.6.1"}}
+{
+  "name": "pro-discord-support-suite",
+  "version": "1.0.0",
+  "description": "Professional Discord Ticket, AI Support, Sales and Security bot.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "deploy": "node scripts/deploy-commands.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.22.1",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "openai": "^5.12.2",
+    "pg": "^8.16.3"
+  }
+}
