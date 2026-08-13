@@ -1,20 +1,518 @@
-require('dotenv').config();
-const {Client,GatewayIntentBits,Partials,PermissionsBitField,ChannelType,EmbedBuilder,ActionRowBuilder,ButtonBuilder,ButtonStyle,StringSelectMenuBuilder,ModalBuilder,TextInputBuilder,TextInputStyle,Events}=require('discord.js');
-const client=new Client({intents:[GatewayIntentBits.Guilds,GatewayIntentBits.GuildMembers,GatewayIntentBits.GuildMessages,GatewayIntentBits.MessageContent,GatewayIntentBits.GuildModeration],partials:[Partials.Channel,Partials.Message,Partials.GuildMember]});
-const c=process.env, C={cyan:0x5865F2,green:0x57F287,red:0xED4245,yellow:0xFEE75C,purple:0x9B59B6};
-const cfg={guild:c.GUILD_ID,staff:c.STAFF_ROLE_ID,ticketCat:c.TICKET_CATEGORY_ID,ticketPanel:c.TICKET_PANEL_CHANNEL_ID,log:c.LOG_CHANNEL_ID,rating:c.RATING_CHANNEL_ID,serverPanel:c.SERVER_PANEL_CHANNEL_ID,announce:c.ANNOUNCEMENT_CHANNEL_ID,event:c.EVENT_CHANNEL_ID,report:c.REPORT_CHANNEL_ID,welcome:c.WELCOME_CHANNEL_ID,autoRole:c.AUTO_ROLE_ID,securityLog:c.SECURITY_LOG_CHANNEL_ID,maxTickets:+(c.MAX_OPEN_TICKETS||1),raidLimit:+(c.RAID_JOIN_LIMIT||6),raidWindow:+(c.RAID_WINDOW_SECONDS||10)*1000,spamLimit:+(c.SPAM_MESSAGE_LIMIT||6),spamWindow:+(c.SPAM_WINDOW_SECONDS||8)*1000,maxMentions:+(c.MAX_MENTIONS||5),security:c.SECURITY_ENABLED!=='false',antiRaid:c.ANTI_RAID_ENABLED!=='false',antiNuke:c.ANTI_NUKE_ENABLED!=='false',antiSpam:c.ANTI_SPAM_ENABLED!=='false',antiLink:c.ANTI_LINK_ENABLED!=='false',antiMention:c.ANTI_MENTION_ENABLED!=='false'};
-const spam=new Map(),joins=new Map();
-const emb=(t,d,col=C.cyan)=>new EmbedBuilder().setColor(col).setTitle(t).setDescription(d).setTimestamp();
-const staff=m=>m&&(m.permissions.has(PermissionsBitField.Flags.Administrator)||(cfg.staff&&m.roles.cache.has(cfg.staff)));
-async function log(g,t,d,col=C.cyan){const ch=g.channels.cache.get(cfg.securityLog||cfg.log);if(ch?.isTextBased())await ch.send({embeds:[emb(t,d,col)]}).catch(()=>{});}
-function ticketPanel(){return new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId('ticket_open').setPlaceholder('🎫 Escolha o tipo de atendimento').addOptions([{label:'Suporte',value:'suporte',emoji:'🛠️'},{label:'Compras',value:'compras',emoji:'🛒'},{label:'Denúncia',value:'denuncia',emoji:'🚨'},{label:'Parceria',value:'parceria',emoji:'🤝'},{label:'VIP',value:'vip',emoji:'💎'}]));}
-function serverPanel(){return new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('server_status').setLabel('Status').setEmoji('🟢').setStyle(ButtonStyle.Success),new ButtonBuilder().setCustomId('server_announcement').setLabel('Anúncio').setEmoji('📢').setStyle(ButtonStyle.Primary),new ButtonBuilder().setCustomId('server_event').setLabel('Evento').setEmoji('🎉').setStyle(ButtonStyle.Primary),new ButtonBuilder().setCustomId('server_report').setLabel('Denúncia').setEmoji('🚨').setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId('server_info').setLabel('Informações').setEmoji('📊').setStyle(ButtonStyle.Secondary));}
-async function panels(g){const t=g.channels.cache.get(cfg.ticketPanel);if(t?.isTextBased()){const x=await t.messages.fetch({limit:30}).catch(()=>null);if(!x?.some(m=>m.author.id===client.user.id&&m.embeds[0]?.title==='🎫 CENTRAL DE ATENDIMENTO'))await t.send({embeds:[emb('🎫 CENTRAL DE ATENDIMENTO','Escolha uma categoria abaixo para abrir seu ticket. Você informará o **motivo**, **com quem deseja falar** e **detalhes**.\n\n🔐 Atendimento privado • ⭐ Avaliação ao finalizar',C.purple)],components:[ticketPanel()]}).catch(()=>{});}const s=g.channels.cache.get(cfg.serverPanel);if(s?.isTextBased()){const x=await s.messages.fetch({limit:30}).catch(()=>null);if(!x?.some(m=>m.author.id===client.user.id&&m.embeds[0]?.title==='🌐 CENTRAL DO SERVIDOR'))await s.send({embeds:[emb('🌐 CENTRAL DO SERVIDOR','🟢 Status\n📢 Anúncios\n🎉 Eventos\n🚨 Denúncias\n📊 Informações',C.cyan)],components:[serverPanel()]}).catch(()=>{});}}
-async function ticketOpen(i,type){const n=i.guild.channels.cache.filter(x=>x.type===ChannelType.GuildText&&x.topic?.includes('owner:'+i.user.id));if(n.size>=cfg.maxTickets)return i.reply({content:`❌ Você já possui ${cfg.maxTickets} ticket(s) aberto(s).`,ephemeral:true});const m=new ModalBuilder().setCustomId('ticket:'+type).setTitle('🎫 '+type.toUpperCase());for(const [id,label,style] of [['reason','Motivo do ticket',TextInputStyle.Short],['who','Com quem deseja falar?',TextInputStyle.Short],['details','Explique o que aconteceu',TextInputStyle.Paragraph]])m.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId(id).setLabel(label).setStyle(style).setRequired(true).setMaxLength(style===TextInputStyle.Paragraph?1000:150)));await i.showModal(m);}
-async function makeTicket(i,type){const g=i.guild,r=i.fields.getTextInputValue('reason'),w=i.fields.getTextInputValue('who'),d=i.fields.getTextInputValue('details');const ch=await g.channels.create({name:`ticket-${i.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,22)||'ticket',type:ChannelType.GuildText,parent:cfg.ticketCat||null,topic:`owner:${i.user.id}|type:${type}`,permissionOverwrites:[{id:g.roles.everyone.id,deny:[PermissionsBitField.Flags.ViewChannel]},{id:i.user.id,allow:[PermissionsBitField.Flags.ViewChannel,PermissionsBitField.Flags.SendMessages,PermissionsBitField.Flags.ReadMessageHistory]},...(cfg.staff?[{id:cfg.staff,allow:[PermissionsBitField.Flags.ViewChannel,PermissionsBitField.Flags.SendMessages,PermissionsBitField.Flags.ReadMessageHistory,PermissionsBitField.Flags.ManageChannels]}]:[])]});const row=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('claim').setLabel('Assumir').setEmoji('🎯').setStyle(ButtonStyle.Primary),new ButtonBuilder().setCustomId('close').setLabel('Fechar').setEmoji('🔐').setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId('rate').setLabel('Avaliar').setEmoji('⭐').setStyle(ButtonStyle.Secondary));await ch.send({content:`<@${i.user.id}>${cfg.staff?` <@&${cfg.staff}>`:''}`,embeds:[emb(`🎫 TICKET • ${type.toUpperCase()}`,`👤 **Cliente:** <@${i.user.id}>\n📝 **Motivo:** ${r}\n💬 **Com quem:** ${w}\n📄 **Detalhes:** ${d}`,C.purple)],components:[row]});await i.reply({content:`✅ Ticket criado: ${ch}`,ephemeral:true});await log(g,'🎫 Ticket criado',`👤 <@${i.user.id}> • ${type} • ${ch}`,C.purple);}
-async function form(i,k){const title=k==='report'?'Quem está sendo denunciado?':'Título';const m=new ModalBuilder().setCustomId('server:'+k).setTitle(k==='report'?'🚨 Denúncia':k==='event'?'🎉 Evento':'📢 Anúncio');m.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('title').setLabel(title).setStyle(TextInputStyle.Short).setRequired(true)),new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('body').setLabel(k==='report'?'Motivo e provas (links)':'Mensagem').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1500)));await i.showModal(m);}
-client.on(Events.GuildMemberAdd,async m=>{const a=joins.get(m.guild.id)||[];a.push(Date.now());joins.set(m.guild.id,a.filter(x=>Date.now()-x<cfg.raidWindow));if(cfg.antiRaid&&joins.get(m.guild.id).length>=cfg.raidLimit)await log(m.guild,'🚨 POSSÍVEL RAID DETECTADA',`⚠️ ${joins.get(m.guild.id).length} entradas em ${cfg.raidWindow/1000}s.\n🔒 Recomenda-se ativar o modo proteção.`,C.red);if(cfg.autoRole&&!m.user.bot)await m.roles.add(cfg.autoRole).catch(()=>{});if(cfg.welcome)m.guild.channels.cache.get(cfg.welcome)?.send(`👋 Bem-vindo(a), ${m}!`).catch(()=>{});});
-client.on(Events.MessageCreate,async m=>{if(!m.guild||m.author.bot||!cfg.security||staff(m.member))return;const text=m.content||'';if(cfg.antiLink&&/(https?:\/\/|discord\.gg\/|www\.)/i.test(text)){await m.delete().catch(()=>{});await log(m.guild,'🔗 Link bloqueado',`👤 ${m.author.tag} • ${m.channel}`,C.red);return;}if(cfg.antiMention&&(m.mentions.everyone||m.mentions.users.size>cfg.maxMentions)){await m.delete().catch(()=>{});await log(m.guild,'📢 Menções excessivas bloqueadas',`👤 ${m.author.tag}`,C.red);return;}if(cfg.antiSpam){const a=(spam.get(m.author.id)||[]).filter(x=>Date.now()-x<cfg.spamWindow);a.push(Date.now());spam.set(m.author.id,a);if(a.length>=cfg.spamLimit){await m.member.timeout(60000,'Anti-Spam').catch(()=>{});spam.delete(m.author.id);await log(m.guild,'💬 Anti-Spam acionado',`👤 ${m.author.tag} • timeout 60s`,C.red);}}});
-client.on(Events.InteractionCreate,async i=>{try{if(i.isStringSelectMenu()){if(i.customId==='ticket_open')return ticketOpen(i,i.values[0]);if(i.customId==='rating'){const r=i.values[0],ch=i.guild.channels.cache.get(cfg.rating);if(ch?.isTextBased())await ch.send({embeds:[emb('⭐ AVALIAÇÃO',`👤 <@${i.user.id}>\n⭐ Nota: **${r}/5**\n📌 Ticket: ${i.channel}`,C.yellow)]});return i.update({content:`✅ Avaliação ${r}/5 registrada!`,components:[]});} }if(i.isModalSubmit()){if(i.customId.startsWith('ticket:'))return makeTicket(i,i.customId.split(':')[1]);if(i.customId==='rename'){if(!staff(i.member))return i.reply({content:'❌ Apenas a equipe.',ephemeral:true});await i.channel.setName(i.fields.getTextInputValue('name').toLowerCase().replace(/[^a-z0-9-]/g,'-').slice(0,90));return i.reply('🪪 Nome atualizado.');}if(i.customId.startsWith('server:')){const k=i.customId.split(':')[1],ch=i.guild.channels.cache.get({announcement:cfg.announce,event:cfg.event,report:cfg.report}[k]);if(ch?.isTextBased())await ch.send({embeds:[emb(i.fields.getTextInputValue('title'),i.fields.getTextInputValue('body')+`\n\n👤 Enviado por <@${i.user.id}>`,k==='report'?C.red:C.cyan)]});return i.reply({content:'✅ Enviado com sucesso.',ephemeral:true});}}if(!i.isButton())return;if(i.customId==='claim'){if(!staff(i.member))return i.reply({content:'❌ Apenas a equipe.',ephemeral:true});return i.reply({embeds:[emb('🎯 Ticket assumido',`👮 Responsável: <@${i.user.id}>`,C.green)]});}if(i.customId==='close'){const owner=i.channel.topic?.match(/owner:(\d+)/)?.[1];if(!owner)return i.reply({content:'❌ Este canal não é um ticket.',ephemeral:true});if(!staff(i.member)&&i.user.id!==owner)return i.reply({content:'❌ Sem permissão.',ephemeral:true});await i.channel.permissionOverwrites.edit(owner,{SendMessages:false}).catch(()=>{});const row=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('reopen').setLabel('Reabrir').setEmoji('🔓').setStyle(ButtonStyle.Success),new ButtonBuilder().setCustomId('delete').setLabel('Excluir').setEmoji('🗑️').setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId('rate').setLabel('Avaliar').setEmoji('⭐').setStyle(ButtonStyle.Primary));return i.reply({embeds:[emb('🔐 ATENDIMENTO ENCERRADO','O ticket foi fechado.\n\n⭐ Avalie o atendimento ou peça para a equipe reabrir.',C.yellow)],components:[row]});}if(i.customId==='rate'){const menu=new StringSelectMenuBuilder().setCustomId('rating').setPlaceholder('⭐ Escolha sua nota').addOptions([1,2,3,4,5].map(n=>({label:`${n}/5`,value:String(n),emoji:'⭐'})));return i.reply({content:'⭐ Avalie o atendimento:',components:[new ActionRowBuilder().addComponents(menu)],ephemeral:true});}if(i.customId==='reopen'){if(!staff(i.member))return i.reply({content:'❌ Apenas a equipe.',ephemeral:true});const owner=i.channel.topic?.match(/owner:(\d+)/)?.[1];if(owner)await i.channel.permissionOverwrites.edit(owner,{SendMessages:true}).catch(()=>{});return i.reply('🔓 Ticket reaberto.');}if(i.customId==='delete'){if(!staff(i.member))return i.reply({content:'❌ Apenas a equipe.',ephemeral:true});await i.reply('🗑️ Excluindo...');return setTimeout(()=>i.channel.delete().catch(()=>{}),1200);}if(i.customId==='server_status')return i.reply({embeds:[emb('🟢 STATUS',`🟢 Online\n👥 Membros: **${i.guild.memberCount}**\n📡 Ping: **${client.ws.ping}ms**`,C.green)],ephemeral:true});if(i.customId==='server_info')return i.reply({embeds:[emb('📊 INFORMAÇÕES',`👥 Membros: **${i.guild.memberCount}**\n📁 Canais: **${i.guild.channels.cache.size}**\n🛡️ Segurança: **${cfg.security?'Ativa':'Desativada'}**`)],ephemeral:true});if(i.customId==='server_announcement'||i.customId==='server_event'||i.customId==='server_report'){const k=i.customId.replace('server_','');if(k!=='report'&&!staff(i.member))return i.reply({content:'❌ Apenas a equipe.',ephemeral:true});return form(i,k);}}catch(e){console.error(e);if(i.isRepliable()&&!i.replied&&!i.deferred)await i.reply({content:'❌ Erro ao processar.',ephemeral:true}).catch(()=>{});}});
-client.once(Events.ClientReady,async()=>{console.log(`✅ ${client.user.tag} online!`);const g=client.guilds.cache.get(cfg.guild);if(g){await panels(g);console.log('🎫 Painel de tickets pronto.');console.log('🌐 Painel do servidor pronto.');}});
-client.login(process.env.TOKEN);
+const {
+  Client,
+  GatewayIntentBits,
+  Partials,
+  Events
+} = require("discord.js");
+
+const config = require("./config");
+const { initDb, pool } = require("./db");
+const { handleCommand } = require("./commands");
+const tickets = require("./services/tickets");
+const security = require("./services/security");
+const { answerTicket } = require("./services/ai");
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ],
+  partials: [
+    Partials.Channel,
+    Partials.Message
+  ]
+});
+
+/*
+|--------------------------------------------------------------------------
+| BOT ONLINE
+|--------------------------------------------------------------------------
+*/
+
+client.once(Events.ClientReady, async (clientUser) => {
+  console.log("====================================");
+  console.log("🤖 BOT INICIADO");
+  console.log(`👤 Login: ${clientUser.tag}`);
+  console.log(`🆔 Bot ID: ${clientUser.id}`);
+  console.log(`🌐 Servidores: ${clientUser.guilds.cache.size}`);
+  console.log("====================================");
+});
+
+/*
+|--------------------------------------------------------------------------
+| INTERACTIONS
+|--------------------------------------------------------------------------
+*/
+
+client.on(Events.InteractionCreate, async (interaction) => {
+  try {
+
+    /*
+    |--------------------------------------------------------------------------
+    | SLASH COMMANDS
+    |--------------------------------------------------------------------------
+    */
+
+    if (interaction.isChatInputCommand()) {
+      await handleCommand(interaction);
+      return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SELECT MENU
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      interaction.isStringSelectMenu() &&
+      interaction.customId === "ticket_create"
+    ) {
+      await tickets.createTicket(
+        interaction,
+        interaction.values[0]
+      );
+
+      return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | BUTTONS
+    |--------------------------------------------------------------------------
+    */
+
+    if (interaction.isButton()) {
+
+      if (interaction.customId === "ticket_claim") {
+        await tickets.claimTicket(interaction);
+        return;
+      }
+
+      if (interaction.customId === "ticket_ai") {
+        await tickets.toggleAI(interaction);
+        return;
+      }
+
+      if (interaction.customId === "ticket_close") {
+        await tickets.closeTicket(interaction);
+        return;
+      }
+
+      if (interaction.customId.startsWith("rate_")) {
+
+        const stars = Number(
+          interaction.customId.split("_")[1]
+        );
+
+        await tickets.rate(
+          interaction,
+          stars
+        );
+
+        return;
+      }
+    }
+
+  } catch (error) {
+
+    console.error("❌ ERRO NA INTERACTION:");
+    console.error(error);
+
+    try {
+
+      if (
+        !interaction.replied &&
+        !interaction.deferred
+      ) {
+
+        await interaction.reply({
+          content: "❌ Ocorreu um erro interno.",
+          ephemeral: true
+        });
+
+      }
+
+    } catch (_) {}
+  }
+});
+
+/*
+|--------------------------------------------------------------------------
+| ANTI RAID
+|--------------------------------------------------------------------------
+*/
+
+client.on(
+  Events.GuildMemberAdd,
+  async (member) => {
+
+    try {
+
+      const count = security.recordJoin(
+        member.guild.id,
+        member.id
+      );
+
+      console.log(
+        `👤 Entrada: ${member.user.tag} | ${count}/15s`
+      );
+
+      /*
+      |--------------------------------------------------------------------------
+      | DETECÇÃO DE RAID
+      |--------------------------------------------------------------------------
+      */
+
+      if (count >= 8) {
+
+        await security.enableRaidMode(
+          member.guild
+        );
+
+        console.warn(
+          `🛡️ POSSÍVEL RAID DETECTADO: ${member.guild.name}`
+        );
+
+      }
+
+    } catch (error) {
+
+      console.error(
+        "❌ Erro no Anti-Raid:",
+        error
+      );
+
+    }
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
+| MENSAGENS
+|--------------------------------------------------------------------------
+*/
+
+client.on(
+  Events.MessageCreate,
+  async (message) => {
+
+    try {
+
+      /*
+      |--------------------------------------------------------------------------
+      | IGNORAR BOTS
+      |--------------------------------------------------------------------------
+      */
+
+      if (
+        message.author.bot ||
+        !message.guild
+      ) {
+        return;
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | ANTI SPAM
+      |--------------------------------------------------------------------------
+      */
+
+      const messageRate =
+        security.recordMessage(
+          message.guild.id,
+          message.author.id
+        );
+
+      if (messageRate >= 8) {
+
+        await message.delete().catch(() => {});
+
+        return;
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | VERIFICAR SE É TICKET
+      |--------------------------------------------------------------------------
+      */
+
+      const channelName =
+        message.channel.name || "";
+
+      const isTicket =
+        channelName.startsWith("🛠️") ||
+        channelName.startsWith("🛒") ||
+        channelName.startsWith("💳") ||
+        channelName.startsWith("🤝");
+
+      if (!isTicket) {
+        return;
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | IGNORAR MENSAGENS MUITO PEQUENAS
+      |--------------------------------------------------------------------------
+      */
+
+      if (
+        !message.content ||
+        message.content.length < 2
+      ) {
+        return;
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | BUSCAR TICKET
+      |--------------------------------------------------------------------------
+      */
+
+      const ticket =
+        await pool.query(
+          `
+          SELECT *
+          FROM tickets
+          WHERE channel_id = $1
+          AND closed_at IS NULL
+          `,
+          [message.channel.id]
+        );
+
+      if (!ticket.rowCount) {
+        return;
+      }
+
+      const ticketData =
+        ticket.rows[0];
+
+      /*
+      |--------------------------------------------------------------------------
+      | SE STAFF ASSUMIU → IA PARA
+      |--------------------------------------------------------------------------
+      */
+
+      if (
+        ticketData.claimed_by ||
+        !ticketData.ai_enabled
+      ) {
+        return;
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | IA
+      |--------------------------------------------------------------------------
+      */
+
+      console.log(
+        `🤖 IA respondendo no ticket ${message.channel.id}`
+      );
+
+      const answer =
+        await answerTicket(
+          message.channel,
+          message.content
+        ).catch((error) => {
+
+          console.error(
+            "❌ Erro na IA:",
+            error.message
+          );
+
+          return null;
+        });
+
+      if (!answer) {
+        return;
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | ENVIAR RESPOSTA DA IA
+      |--------------------------------------------------------------------------
+      */
+
+      await message.channel.send({
+        content: answer.slice(0, 3900)
+      });
+
+    } catch (error) {
+
+      console.error(
+        "❌ Erro no MessageCreate:",
+        error
+      );
+
+    }
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
+| VERIFICAÇÃO DO TOKEN
+|--------------------------------------------------------------------------
+*/
+
+async function startBot() {
+
+  console.log("====================================");
+  console.log("🚀 INICIANDO PRO DISCORD BOT");
+  console.log("====================================");
+
+  /*
+  |--------------------------------------------------------------------------
+  | VERIFICAR ENV
+  |--------------------------------------------------------------------------
+  */
+
+  console.log(
+    "🔍 Verificando configuração..."
+  );
+
+  const token =
+    process.env.DISCORD_TOKEN;
+
+  /*
+  |--------------------------------------------------------------------------
+  | NÃO MOSTRAR TOKEN
+  |--------------------------------------------------------------------------
+  */
+
+  console.log(
+    "🔑 DISCORD_TOKEN existe:",
+    Boolean(token)
+  );
+
+  console.log(
+    "📏 Tamanho do token:",
+    token ? token.length : 0
+  );
+
+  /*
+  |--------------------------------------------------------------------------
+  | VERIFICAR TOKEN
+  |--------------------------------------------------------------------------
+  */
+
+  if (!token) {
+
+    console.error(
+      "❌ DISCORD_TOKEN não foi encontrado!"
+    );
+
+    console.error(
+      "➡️ Railway → Variables → DISCORD_TOKEN"
+    );
+
+    process.exit(1);
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | BANCO
+  |--------------------------------------------------------------------------
+  */
+
+  try {
+
+    console.log(
+      "🗄️ Inicializando banco de dados..."
+    );
+
+    await initDb();
+
+    console.log(
+      "✅ Banco de dados conectado."
+    );
+
+  } catch (error) {
+
+    console.error(
+      "❌ Erro no banco de dados:"
+    );
+
+    console.error(error);
+
+    process.exit(1);
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | LOGIN DISCORD
+  |--------------------------------------------------------------------------
+  */
+
+  try {
+
+    console.log(
+      "🔐 Tentando conectar ao Discord..."
+    );
+
+    await client.login(
+      token.trim()
+    );
+
+  } catch (error) {
+
+    console.error(
+      "===================================="
+    );
+
+    console.error(
+      "❌ NÃO FOI POSSÍVEL LOGIN NO DISCORD"
+    );
+
+    console.error(
+      "===================================="
+    );
+
+    console.error(
+      "Código:",
+      error.code
+    );
+
+    console.error(
+      "Mensagem:",
+      error.message
+    );
+
+    if (
+      error.code === "TokenInvalid"
+    ) {
+
+      console.error(
+        "🔴 O DISCORD_TOKEN é inválido."
+      );
+
+      console.error(
+        "➡️ Gere um novo token em:"
+      );
+
+      console.error(
+        "Discord Developer Portal → Bot → Reset Token"
+      );
+
+      console.error(
+        "➡️ Depois coloque o novo token em:"
+      );
+
+      console.error(
+        "Railway → Variables → DISCORD_TOKEN"
+      );
+    }
+
+    process.exit(1);
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| START
+|--------------------------------------------------------------------------
+*/
+
+startBot();
